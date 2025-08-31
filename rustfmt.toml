@@ -1,0 +1,8 @@
+edition = "2024"
+fn_params_layout = "Tall"
+# fn_single_line = true
+# imports_granularity = "Module"
+reorder_imports = true
+reorder_modules = true
+# space_after_colon = true
+tab_spaces = 4

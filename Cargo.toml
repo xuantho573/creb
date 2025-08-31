@@ -1,0 +1,10 @@
+[package]
+name = "creb"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+clap = { version = "4.5.46", features = ["derive"] }
+epub = "2.1.4"
+ratatui = { version = "0.29.0", features = ["all-widgets"] }
+xml-rs = "0.8.27"
