@@ -1,9 +1,6 @@
-use std::io;
-use ratatui::{
-    backend::CrosstermBackend,
-    Terminal,
-};
 use ratatui::crossterm::event::{Event, KeyCode, KeyEventKind};
+use ratatui::{Terminal, backend::CrosstermBackend};
+use std::io;
 
 pub struct UI {
     terminal: Terminal<CrosstermBackend<io::Stdout>>,
@@ -42,7 +39,7 @@ impl UI {
     }
 
     pub fn size(&self) -> ratatui::layout::Rect {
-        // Use a default size for now
+        // Return a default size since we can't get the actual size without a mutable reference
         ratatui::layout::Rect::new(0, 0, 80, 24)
     }
 
@@ -52,12 +49,21 @@ impl UI {
                 if key.kind == KeyEventKind::Press {
                     match key.code {
                         KeyCode::Char('q') | KeyCode::Esc => return Ok(Some(UserAction::Quit)),
-                        KeyCode::Char('j') | KeyCode::Down => return Ok(Some(UserAction::ScrollDown)),
+                        KeyCode::Char('j') | KeyCode::Down => {
+                            return Ok(Some(UserAction::ScrollDown));
+                        }
                         KeyCode::Char('k') | KeyCode::Up => return Ok(Some(UserAction::ScrollUp)),
                         KeyCode::Char(' ') => return Ok(Some(UserAction::PageDown)),
                         KeyCode::Char('b') => return Ok(Some(UserAction::PageUp)),
-                        KeyCode::Char('l') | KeyCode::Right => return Ok(Some(UserAction::NextChapter)),
-                        KeyCode::Char('h') | KeyCode::Left => return Ok(Some(UserAction::PreviousChapter)),
+                        KeyCode::Char('l') | KeyCode::Right => {
+                            return Ok(Some(UserAction::NextChapter));
+                        }
+                        KeyCode::Char('h') | KeyCode::Left => {
+                            return Ok(Some(UserAction::PreviousChapter));
+                        }
+                        KeyCode::Char('i') => {
+                            return Ok(Some(UserAction::ViewImage));
+                        }
                         _ => {}
                     }
                 }
@@ -75,4 +81,5 @@ pub enum UserAction {
     ScrollUp,
     PageDown,
     PageUp,
+    ViewImage,
 }

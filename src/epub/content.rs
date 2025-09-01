@@ -4,7 +4,8 @@
 pub enum RenderableBlock {
     Paragraph(String),
     Heading(usize, String), // usize for heading level (h1, h2, etc.)
-    // Add more types as needed, e.g., ListItem(String), ImagePlaceholder(String)
+    Image(String), // Path or URL to the image
+    ImagePlaceholder(String), // For images that couldn't be loaded
 }
 
 #[derive(Debug)]

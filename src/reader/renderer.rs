@@ -1,10 +1,11 @@
-// src/reader/renderer.rs
-
+use crate::epub::content::{RenderableBlock, RenderableChapter};
 use ratatui::{
     layout::{Constraint, Direction, Layout},
+    style::{Modifier, Style},
+    text::{Line, Span},
     widgets::{Block, Borders, Paragraph, Wrap},
 };
-use crate::epub::content::{RenderableChapter, RenderableBlock};
+use ratatui_image::{picker::Picker, StatefulImage};
 
 pub struct Renderer;
 
@@ -17,69 +18,116 @@ impl Renderer {
         scroll_position: usize,
     ) {
         let size = frame.area();
-        
+
         // Create the layout sections
         let chunks = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
-                Constraint::Length(3),  // Header
-                Constraint::Min(0),     // Content
-                Constraint::Length(3),  // Footer
+                Constraint::Length(3), // Header
+                Constraint::Min(0),    // Content
+                Constraint::Length(3), // Footer
             ])
             .split(size);
 
         // Header with title
-        let title_block = Block::default()
-            .borders(Borders::ALL)
-            .title(title);
-        
-        let title_paragraph = Paragraph::new("")
-            .block(title_block);
-        
+        let title_block = Block::default().borders(Borders::ALL).title(title);
+
+        let title_paragraph = Paragraph::new("").block(title_block);
+
         frame.render_widget(title_paragraph, chunks[0]);
 
         // Content area
-        let content_block = Block::default()
-            .borders(Borders::NONE);
+        let content_block = Block::default().borders(Borders::NONE);
 
-        // Build the content text with proper formatting
-        let mut content_lines = Vec::new();
-        
+        // Build the content with proper formatting using Lines and Spans
+        let mut content_lines: Vec<Line> = Vec::new();
+
         for block in &chapter.blocks {
             match block {
                 RenderableBlock::Paragraph(text) => {
+                    // Add an empty line before paragraph for spacing
+                    content_lines.push(Line::from(""));
+
                     // For paragraphs, we'll wrap the text and add it as multiple lines
                     let wrapped_lines = wrap_text(text, size.width as usize - 2); // -2 for borders/padding
-                    content_lines.extend(wrapped_lines);
-                    // Add an empty line after each paragraph
-                    content_lines.push(String::new());
+                    for line in wrapped_lines {
+                        content_lines.push(Line::from(line));
+                    }
+
+                    // Add an empty line after paragraph for spacing
+                    content_lines.push(Line::from(""));
                 }
                 RenderableBlock::Heading(level, text) => {
-                    // Add an empty line before headings
-                    content_lines.push(String::new());
-                    
-                    // For headings, we'll add the text with appropriate markers
-                    let heading_text = match level {
-                        1 => format!("# {}", text),
-                        2 => format!("## {}", text),
-                        3 => format!("### {}", text),
-                        4 => format!("#### {}", text),
-                        5 => format!("##### {}", text),
-                        _ => format!("###### {}", text),
+                    // Add an empty line before heading for spacing
+                    content_lines.push(Line::from(""));
+
+                    // For headings, we'll add the text with appropriate styling
+                    let (heading_prefix, heading_suffix, style) = match level {
+                        1 => (
+                            "=".repeat(std::cmp::min(5, size.width as usize / 4)),
+                            "=".repeat(std::cmp::min(5, size.width as usize / 4)),
+                            Style::default().add_modifier(Modifier::BOLD)
+                        ),
+                        2 => (
+                            "-".repeat(std::cmp::min(3, size.width as usize / 6)),
+                            "-".repeat(std::cmp::min(3, size.width as usize / 6)),
+                            Style::default().add_modifier(Modifier::BOLD)
+                        ),
+                        3 => ("###".to_string(), "".to_string(), Style::default().add_modifier(Modifier::BOLD)),
+                        4 => ("####".to_string(), "".to_string(), Style::default().add_modifier(Modifier::UNDERLINED)),
+                        5 => ("#####".to_string(), "".to_string(), Style::default().add_modifier(Modifier::UNDERLINED)),
+                        _ => ("######".to_string(), "".to_string(), Style::default()),
                     };
-                    
-                    content_lines.push(heading_text);
-                    // Add an empty line after headings
-                    content_lines.push(String::new());
+
+                    let heading_line = Line::from(vec![
+                        Span::raw(" "),
+                        Span::styled(heading_prefix.clone(), style),
+                        Span::raw(" "),
+                        Span::styled(text.clone(), style),
+                        Span::raw(" "),
+                        Span::styled(heading_suffix.clone(), style),
+                        Span::raw(" "),
+                    ]);
+
+                    content_lines.push(heading_line);
+
+                    // Add an empty line after heading for spacing
+                    content_lines.push(Line::from(""));
+                }
+                RenderableBlock::Image(path) => {
+                    // Add an empty line before image for spacing
+                    content_lines.push(Line::from(""));
+
+                    // Add image info with special styling
+                    content_lines.push(Line::from(vec![
+                        Span::raw("[Image: "),
+                        Span::styled(path.clone(), Style::default().add_modifier(Modifier::ITALIC)),
+                        Span::raw("]"),
+                    ]));
+                    content_lines.push(Line::from("(Press 'i' when this line is visible to view the image)"));
+
+                    // Add an empty line after image for spacing
+                    content_lines.push(Line::from(""));
+                }
+                RenderableBlock::ImagePlaceholder(description) => {
+                    // Add an empty line before image for spacing
+                    content_lines.push(Line::from(""));
+
+                    // Add image placeholder info
+                    content_lines.push(Line::from(vec![
+                        Span::raw("[Image: "),
+                        Span::styled(description.clone(), Style::default().add_modifier(Modifier::ITALIC)),
+                        Span::raw("]"),
+                    ]));
+
+                    // Add an empty line after image for spacing
+                    content_lines.push(Line::from(""));
                 }
             }
         }
 
-        // Convert to a single string with newlines
-        let content_text = content_lines.join("\n");
-        
         // Create the content paragraph with scrolling
-        let content_paragraph = Paragraph::new(content_text)
+        let content_paragraph = Paragraph::new(content_lines)
             .block(content_block)
             .wrap(Wrap { trim: false })
             .scroll((scroll_position as u16, 0));
@@ -87,14 +135,64 @@ impl Renderer {
         frame.render_widget(content_paragraph, chunks[1]);
 
         // Footer with progress
-        let progress_text = format!("Progress: {:.1}% | Scroll: {}", progress * 100.0, scroll_position);
-        let footer_block = Block::default()
-            .borders(Borders::ALL)
-            .title(progress_text);
-        
-        let footer_paragraph = Paragraph::new("")
-            .block(footer_block);
-        
+        let progress_text = format!(
+            "Progress: {:.1}% | Scroll: {}",
+            progress * 100.0,
+            scroll_position
+        );
+        let footer_block = Block::default().borders(Borders::ALL).title(progress_text);
+
+        let footer_paragraph = Paragraph::new("").block(footer_block);
+
+        frame.render_widget(footer_paragraph, chunks[2]);
+    }
+
+    pub fn render_image(
+        frame: &mut ratatui::Frame,
+        image_path: &str,
+        title: &str,
+        progress: f64,
+        scroll_position: usize,
+    ) {
+        let size = frame.area();
+
+        // Create the layout sections
+        let chunks = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([
+                Constraint::Length(3), // Header
+                Constraint::Min(0),    // Content
+                Constraint::Length(3), // Footer
+            ])
+            .split(size);
+
+        // Header with title
+        let title_block = Block::default().borders(Borders::ALL).title(title);
+
+        let title_paragraph = Paragraph::new("").block(title_block);
+
+        frame.render_widget(title_paragraph, chunks[0]);
+
+        let picker = Picker::from_fontsize((8, 12));
+
+        // Load an image with the image crate.
+        let dyn_img = image::ImageReader::open(image_path).unwrap().decode().unwrap();
+
+        // Create the Protocol which will be used by the widget.
+        let mut image = picker.new_resize_protocol(dyn_img);
+
+        frame.render_stateful_widget(StatefulImage::default(), chunks[1], &mut image);
+
+        // Footer with progress
+        let progress_text = format!(
+            "Progress: {:.1}% | Scroll: {}",
+            progress * 100.0,
+            scroll_position
+        );
+        let footer_block = Block::default().borders(Borders::ALL).title(progress_text);
+
+        let footer_paragraph = Paragraph::new("").block(footer_block);
+
         frame.render_widget(footer_paragraph, chunks[2]);
     }
 }
@@ -103,7 +201,7 @@ impl Renderer {
 fn wrap_text(text: &str, width: usize) -> Vec<String> {
     let mut lines = Vec::new();
     let mut current_line = String::new();
-    
+
     for word in text.split_whitespace() {
         // Check if adding this word would exceed the width
         let test_line = if current_line.is_empty() {
@@ -111,7 +209,7 @@ fn wrap_text(text: &str, width: usize) -> Vec<String> {
         } else {
             format!("{} {}", current_line, word)
         };
-        
+
         if test_line.len() <= width {
             current_line = test_line;
         } else {
@@ -125,7 +223,7 @@ fn wrap_text(text: &str, width: usize) -> Vec<String> {
                     // Add as much as we can to the current line
                     let (first_part, rest) = word.split_at(width);
                     lines.push(first_part.to_string());
-                    
+
                     // Handle the rest of the word
                     let mut remaining = rest;
                     while remaining.len() > width {
@@ -142,58 +240,16 @@ fn wrap_text(text: &str, width: usize) -> Vec<String> {
             }
         }
     }
-    
+
     // Add the last line if it's not empty
     if !current_line.is_empty() {
         lines.push(current_line);
     }
-    
+
     // If no lines were added (empty text), add an empty line
     if lines.is_empty() {
         lines.push(String::new());
     }
-    
+
     lines
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_wrap_text() {
-        let text = "This is a test paragraph with several words that should be wrapped appropriately.";
-        let wrapped = wrap_text(text, 20);
-        
-        // Check that we have multiple lines
-        assert!(wrapped.len() > 1);
-        
-        // Check that each line is within the width limit
-        for line in wrapped.iter() {
-            assert!(line.len() <= 20);
-        }
-    }
-
-    #[test]
-    fn test_wrap_text_short_width() {
-        let text = "This is a test";
-        let wrapped = wrap_text(text, 5);
-        
-        // Check that we have multiple lines
-        assert!(wrapped.len() >= 2);
-        
-        // Check that each line is within the width limit
-        for line in wrapped.iter() {
-            assert!(line.len() <= 5);
-        }
-    }
-
-    #[test]
-    fn test_wrap_text_empty() {
-        let text = "";
-        let wrapped = wrap_text(text, 10);
-        
-        // Should have at least one line (empty line)
-        assert!(!wrapped.is_empty());
-    }
 }

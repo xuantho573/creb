@@ -3,12 +3,14 @@ use std::io;
 
 mod app;
 mod epub;
+mod image_handler;
 mod parser;
 mod reader;
 mod ui;
 
 use crate::app::AppState;
 use crate::epub::handler::EpubHandler;
+use crate::image_handler::create_image_widget;
 use crate::parser::CliArgs;
 use crate::reader::renderer::Renderer;
 use crate::ui::{UI, UserAction};
@@ -71,6 +73,49 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 UserAction::PageUp => {
                     let page_size = (ui.size().height / 2) as usize;
                     app_state.page_up(page_size);
+                }
+                UserAction::ViewImage => {
+                    // Display the current image if there is one
+                    if let Some(image_path) = app_state.get_current_image_path() {
+                        if !image_path.as_os_str().is_empty() {
+                            // Convert PathBuf to string for create_image_widget function
+                            if let Some(path_str) = image_path.to_str() {
+                                // Try to create the image widget
+                                match create_image_widget(path_str) {
+                                    Ok(_image_widget) => {
+                                        // In a full implementation, we would render the image widget
+                                        // For now, we'll just show a message
+                                        // ui.clear_screen()?;
+                                        ui.draw(|frame| {
+                                            Renderer::render_image(
+                                                frame,
+                                                path_str,
+                                                &app_state.get_chapter_title(),
+                                                app_state.get_chapter_progress(),
+                                                app_state.scroll_position,
+                                            );
+                                        })?;
+                                        let _ = ratatui::crossterm::event::read();
+                                        // Reinitialize the terminal
+                                        // ui.init()?;
+                                    }
+                                    Err(e) => {
+                                        ui.clear_screen()?;
+                                        println!("Error creating image widget: {}", e);
+                                        println!("Press any key to continue...");
+                                        let _ = ratatui::crossterm::event::read();
+                                        ui.init()?;
+                                    }
+                                }
+                            } else {
+                                ui.clear_screen()?;
+                                println!("Error: Invalid image path");
+                                println!("Press any key to continue...");
+                                let _ = ratatui::crossterm::event::read();
+                                ui.init()?;
+                            }
+                        }
+                    }
                 }
             }
         }
